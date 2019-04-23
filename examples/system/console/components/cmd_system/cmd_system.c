@@ -73,7 +73,8 @@ static int get_version(int argc, char **argv)
 static void register_version()
 {
     const esp_console_cmd_t cmd = {
-        .command = "version",
+        // .command = "version",
+        .command = "AT+GMR",
         .help = "Get version of chip and SDK",
         .hint = NULL,
         .func = &get_version,
