@@ -19,16 +19,15 @@
 #include "nvs_flash.h"
 #include "tcpip_adapter.h"
 #include "esp_smartconfig.h"
+#include "wificonfig.h"
 
-/* FreeRTOS event group to signal when we are connected & ready to make a request */
-static EventGroupHandle_t wifi_event_group;
 
 /* The event group allows multiple bits for each event,
    but we only care about one event - are we connected
    to the AP with an IP? */
-static const int CONNECTED_BIT = BIT0;
-static const int ESPTOUCH_DONE_BIT = BIT1;
-static const char *TAG = "sc";
+// static const int CONNECTED_BIT = BIT0;
+// static const int ESPTOUCH_DONE_BIT = BIT1;
+static const char *TAG = "SC";
 
 void smartconfig_example_task(void * parm);
 
@@ -36,12 +35,15 @@ static esp_err_t event_handler(void *ctx, system_event_t *event)
 {
     switch(event->event_id) {
     case SYSTEM_EVENT_STA_START:
+        ESP_LOGI(TAG, "SYSTEM_EVENT_STA_START");
         xTaskCreate(smartconfig_example_task, "smartconfig_example_task", 4096, NULL, 3, NULL);
         break;
     case SYSTEM_EVENT_STA_GOT_IP:
+        ESP_LOGI(TAG, "SYSTEM_EVENT_STA_GOT_IP");
         xEventGroupSetBits(wifi_event_group, CONNECTED_BIT);
         break;
     case SYSTEM_EVENT_STA_DISCONNECTED:
+        ESP_LOGI(TAG, "SYSTEM_EVENT_STA_DISCONNECTED");
         esp_wifi_connect();
         xEventGroupClearBits(wifi_event_group, CONNECTED_BIT);
         break;
@@ -103,9 +105,12 @@ void smartconfig_example_task(void * parm)
 {
     EventBits_t uxBits;
     ESP_ERROR_CHECK( esp_smartconfig_set_type(SC_TYPE_ESPTOUCH_AIRKISS) );
-    ESP_ERROR_CHECK( esp_smartconfig_start(sc_callback) );
     while (1) {
-        uxBits = xEventGroupWaitBits(wifi_event_group, CONNECTED_BIT | ESPTOUCH_DONE_BIT, true, false, portMAX_DELAY); 
+        uxBits = xEventGroupWaitBits(wifi_event_group, STARTCONFIG_BIT | CONNECTED_BIT | ESPTOUCH_DONE_BIT, true, false, portMAX_DELAY); 
+        if(uxBits & STARTCONFIG_BIT) {           
+            ESP_ERROR_CHECK( esp_smartconfig_start(sc_callback) );
+            ESP_LOGI(TAG, "WIFI Start config");
+        }
         if(uxBits & CONNECTED_BIT) {
             ESP_LOGI(TAG, "WiFi Connected to ap");
         }
@@ -117,9 +122,16 @@ void smartconfig_example_task(void * parm)
     }
 }
 
-void app_main()
+void wifi_config_main()
 {
     ESP_ERROR_CHECK( nvs_flash_init() );
     initialise_wifi();
 }
 
+void start_config() {
+    xEventGroupSetBits(wifi_event_group, STARTCONFIG_BIT);
+}
+
+void stop_config() {
+    xEventGroupSetBits(wifi_event_group, ESPTOUCH_DONE_BIT);
+}
